@@ -11,26 +11,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Fetch your code + submodules
-      - name: Checkout repo (w/ submodules)
+      # 1) Checkout your fork (with submodules)
+      - name: Checkout code + submodules
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      # 2. Register QEMU emulation for ARM
-      - name: Set up QEMU for multi-arch
+      # 2) Enable QEMU emulation for ARM64
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
           platforms: linux/arm64
 
-      # 3. Do the build inside the ARM container
+      # 3) Build inside an ARM64 container via docker-run-action
       - name: Build in ARM64 container
         uses: addnab/docker-run-action@v3
         with:
-          image: arm64v8/ubuntu:20.04
-          options: --privileged --workdir /github/workspace
+          image: ubuntu:20.04
+          # tell Docker to pull/run the ARM64 variant
+          options: --platform linux/arm64 --privileged --workdir /github/workspace
           run: |
-            set -e
+            set -eux
+
+            # Install Qt5, CMake, etc.
             apt-get update
             DEBIAN_FRONTEND=noninteractive apt-get install -y \
               build-essential \
@@ -39,22 +42,23 @@ jobs:
               pkg-config \
               qtbase5-dev \
               qttools5-dev-tools \
-              libqt5svg5-dev \
-              libssl-dev
+              libqt5svg5-dev
 
+            # Out-of-source build
             mkdir -p build
             cd build
 
             cmake .. \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_INSTALL_PREFIX=/usr/local
-              # -DCMAKE_EXE_LINKER_FLAGS="-static"   # <-- if you're supplying your own static Qt libs
+              # uncomment to try fully static:
+              # -DCMAKE_EXE_LINKER_FLAGS="-static"
 
-            make -j$(nproc)
+            make -j"$(nproc)"
             strip cubiomes-viewer
 
-      # 4. Upload the finished binary
-      - name: Upload ARM64 binary
+      # 4) Upload the ARM64 binary
+      - name: Upload cubiomes-viewer-aarch64
         uses: actions/upload-artifact@v4
         with:
           name: cubiomes-viewer-aarch64
