@@ -1,47 +1,59 @@
-name: Build Static ARM64 Cubiomes Viewer
+# .github/workflows/build-arm64-docker.yml
+name: Build ARM64 Cubiomes Viewer (Docker)
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build in ARM64 Container
     runs-on: ubuntu-latest
-    name: Build ARM64 Static Binary
 
     steps:
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y build-essential wget tar git cmake \
-                            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-                            libgl-dev libfreetype-dev libx11-dev libxext-dev \
-                            libxrender-dev libfontconfig-dev
+      # 1) Set up QEMU so that Docker can emulate ARM64
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-    - name: Set up Qt static build for ARM64
-      run: |
-        mkdir qt5 && cd qt5
-        wget https://download.qt.io/archive/qt/5.15/5.15.12/submodules/qtbase-everywhere-opensource-src-5.15.12.tar.xz
-        tar xf qtbase-everywhere-opensource-src-5.15.12.tar.xz
-        cd qtbase-everywhere-src-5.15.12
-        ./configure -release -static -opensource -confirm-license -nomake examples \
-                    -opengl -fontconfig -system-freetype -qt-zlib -qt-libjpeg -qt-libpng \
-                    -qt-pcre -qt-harfbuzz -prefix $PWD/qt5arm64 \
-                    -xplatform linux-aarch64-gnu-g++ \
-                    -device-option CROSS_COMPILE=aarch64-linux-gnu-
-        make -j$(nproc)
+      # 2) Set up Buildx (multi-platform builder)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Clone Cubiomes Viewer
-      run: |
-        git clone --recursive https://github.com/Cubitect/cubiomes-viewer.git
-        cd cubiomes-viewer
-        mkdir build && cd build
-        ~/qt5/qtbase-everywhere-src-5.15.12/qt5arm64/bin/qmake ..
-        make -j$(nproc)
+      # 3) Checkout your code + submodules
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Upload ARM64 Binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: cubiomes-viewer-static-arm64
-        path: cubiomes-viewer/build/cubiomes-viewer
+      # 4) Build inside an Ubuntu:20.04 ARM64 container
+      - name: Build in ARM64 container
+        run: |
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "$PWD":/src \
+            -w /src \
+            ubuntu:20.04 \
+            bash -euxc "
+              apt-get update && apt-get install -y \
+                qt5-default qttools5-dev-tools \
+                build-essential git \
+                libglu1-mesa-dev libx11-dev libxrandr-dev \
+                libxi-dev libxrender-dev libfontconfig1-dev
+
+              git submodule update --init --recursive
+
+              mkdir -p build && cd build
+              qmake ../cubiomes-viewer.pro \
+                CONFIG+=release \
+                QMAKE_CXXFLAGS+='-O2'
+              make -j\$(nproc)
+
+              # verify it's ARM64:
+              file cubiomes-viewer
+            "
+
+      # 5) Grab the binary out and upload as artifact
+      - name: Upload ARM64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cubiomes-viewer-arm64
+          path: build/cubiomes-viewer
