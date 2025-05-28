@@ -6,26 +6,26 @@ on:
 
 jobs:
   build:
-    name: Build in ARM64 Container
     runs-on: ubuntu-latest
+    name: Build in ARM64 container
 
     steps:
-      # 1) Set up QEMU so that Docker can emulate ARM64
+      # 1) Allow QEMU to emulate ARM64
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # 2) Set up Buildx (multi-platform builder)
+      # 2) Enable multi-arch builds
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      # 3) Checkout your code + submodules
+      # 3) Grab your code + submodules
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # 4) Build inside an Ubuntu:20.04 ARM64 container
-      - name: Build in ARM64 container
+      # 4) Build inside an ARM64 Ubuntu container
+      - name: Build with distro Qt in ARM64
         run: |
           docker run --rm \
             --platform linux/arm64 \
@@ -33,7 +33,11 @@ jobs:
             -w /src \
             ubuntu:20.04 \
             bash -euxc "
-              apt-get update && apt-get install -y \
+              # avoid any tzselect prompts (just in case)
+              export TZ=Asia/Kolkata
+
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
                 qt5-default qttools5-dev-tools \
                 build-essential git \
                 libglu1-mesa-dev libx11-dev libxrandr-dev \
@@ -41,17 +45,21 @@ jobs:
 
               git submodule update --init --recursive
 
+              # build directory
               mkdir -p build && cd build
+
+              # this will pick up cubiomes/ automatically
               qmake ../cubiomes-viewer.pro \
                 CONFIG+=release \
                 QMAKE_CXXFLAGS+='-O2'
+
               make -j\$(nproc)
 
-              # verify it's ARM64:
+              # sanity-check
               file cubiomes-viewer
             "
 
-      # 5) Grab the binary out and upload as artifact
+      # 5) Upload the resulting ARM64 ELF
       - name: Upload ARM64 binary
         uses: actions/upload-artifact@v4
         with:
