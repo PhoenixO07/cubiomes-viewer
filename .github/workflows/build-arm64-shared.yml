@@ -1,7 +1,6 @@
 # .github/workflows/build-arm64.yml
 name: Build Cubiomes Viewer (AArch64)
 
-# trigger on pushes to your default branch or manually
 on:
   push:
     branches: [ main, trunk ]
@@ -9,7 +8,6 @@ on:
 
 jobs:
   build-aarch64:
-    # we build inside an ARM64 Ubuntu container
     runs-on: ubuntu-latest
     container:
       image: arm64v8/ubuntu:20.04
@@ -34,28 +32,27 @@ jobs:
             libqt5svg5-dev
 
       - name: Configure CMake
-        working-directory: ./  # root of repo
         run: |
           mkdir -p build
           cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr/local \
-            # for a static-linked binary, uncomment the next line:
-            #-DCMAKE_EXE_LINKER_FLAGS="-static"
+            -DCMAKE_INSTALL_PREFIX=/usr/local
+            # for static Qt builds, supply static libs and uncomment:
+            # -DCMAKE_EXE_LINKER_FLAGS="-static"
 
       - name: Compile
-        working-directory: build
-        run: make -j$(nproc)
+        run: |
+          cd build
+          make -j$(nproc)
 
-      - name: Strip symbols (reduce size)
+      - name: Strip symbols
         if: success()
         run: |
           strip build/cubiomes-viewer
 
       - name: Upload ARM64 binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cubiomes-viewer-aarch64
-          path: |
-            build/cubiomes-viewer
+          path: build/cubiomes-viewer
