@@ -28,17 +28,18 @@ jobs:
             libgl1-mesa-dev
 
       - name: Configure build (CMake for ARM64)
+      - name: Configure build (CMake for ARM64)
         run: |
           mkdir -p build-arm64
           cd build-arm64
-          cmake .. \
+          cmake ../cubiomes \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
             -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
             -DCMAKE_BUILD_TYPE=Release \
             -G Ninja
-
+            
       - name: Build project
         run: |
           cd build-arm64
