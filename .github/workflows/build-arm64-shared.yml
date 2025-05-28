@@ -1,53 +1,47 @@
-name: Build ARM64
+name: Build Static ARM64 Cubiomes Viewer
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-arm64:
+  build:
     runs-on: ubuntu-latest
-    name: Build for ARM64
+    name: Build ARM64 Static Binary
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive  # Needed to fetch the cubiomes submodule
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential wget tar git cmake \
+                            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+                            libgl-dev libfreetype-dev libx11-dev libxext-dev \
+                            libxrender-dev libfontconfig-dev
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            ninja-build \
-            cmake \
-            build-essential
+    - name: Set up Qt static build for ARM64
+      run: |
+        mkdir qt5 && cd qt5
+        wget https://download.qt.io/archive/qt/5.15/5.15.12/submodules/qtbase-everywhere-opensource-src-5.15.12.tar.xz
+        tar xf qtbase-everywhere-opensource-src-5.15.12.tar.xz
+        cd qtbase-everywhere-src-5.15.12
+        ./configure -release -static -opensource -confirm-license -nomake examples \
+                    -opengl -fontconfig -system-freetype -qt-zlib -qt-libjpeg -qt-libpng \
+                    -qt-pcre -qt-harfbuzz -prefix $PWD/qt5arm64 \
+                    -xplatform linux-aarch64-gnu-g++ \
+                    -device-option CROSS_COMPILE=aarch64-linux-gnu-
+        make -j$(nproc)
 
-      - name: Create build directory and configure project
-        run: |
-          mkdir -p build-arm64
-          cd build-arm64
-          cmake ../cubiomes \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-            -DCMAKE_BUILD_TYPE=Release \
-            -G Ninja
+    - name: Clone Cubiomes Viewer
+      run: |
+        git clone --recursive https://github.com/Cubitect/cubiomes-viewer.git
+        cd cubiomes-viewer
+        mkdir build && cd build
+        ~/qt5/qtbase-everywhere-src-5.15.12/qt5arm64/bin/qmake ..
+        make -j$(nproc)
 
-      - name: Build
-        run: |
-          cd build-arm64
-          ninja
-
-      - name: Strip binaries
-        run: |
-          cd build-arm64
-          find . -type f -executable -exec file {} \; | grep 'ELF' | cut -d: -f1 | xargs --no-run-if-empty aarch64-linux-gnu-strip
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cubiomes-viewer-arm64
-          path: build-arm64/*
+    - name: Upload ARM64 Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: cubiomes-viewer-static-arm64
+        path: cubiomes-viewer/build/cubiomes-viewer
