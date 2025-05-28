@@ -1,4 +1,3 @@
-# .github/workflows/build-arm64.yml
 name: Build Cubiomes Viewer for ARM64 (Shared)
 
 on:
@@ -8,13 +7,14 @@ jobs:
   build:
     name: Build ARM64
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
+      - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive  # cubiomes is a submodule
+          submodules: recursive
 
-      - name: Install cross-compilation tools
+      - name: Install cross-compilation and dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -27,11 +27,11 @@ jobs:
             libxi-dev \
             libgl1-mesa-dev
 
-      - name: Configure CMake for ARM64
+      - name: Configure build (CMake for ARM64)
         run: |
           mkdir -p build-arm64
           cd build-arm64
-          cmake ../cubiomes-viewer \
+          cmake .. \
             -DCMAKE_SYSTEM_NAME=Linux \
             -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
@@ -39,17 +39,17 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -G Ninja
 
-      - name: Build
+      - name: Build project
         run: |
           cd build-arm64
           ninja
 
-      - name: Strip Binary (Optional)
+      - name: Strip binary (optional)
         run: |
           file build-arm64/cubiomes-viewer
           aarch64-linux-gnu-strip build-arm64/cubiomes-viewer || true
 
-      - name: Upload binary
+      - name: Upload built binary
         uses: actions/upload-artifact@v4
         with:
           name: cubiomes-viewer-arm64
